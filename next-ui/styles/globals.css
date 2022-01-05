@@ -1,0 +1,13 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	@font-face {
+		font-family: KohSantepheap;
+		src: url(/fonts/kohsantepheap/KohSantepheap-Bold.ttf) format("ttf");
+		font-style: bold;
+		font-weight: 700;
+		font-display: swap;	  
+	}
+}
