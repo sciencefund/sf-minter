@@ -1,7 +1,12 @@
-# Science Fund Homepage with SFT
+# Science Fund Token Minter App 
 
 # NextJS Frontend
 
+## Deployment
+- Staging app is deployed on [http://science-fund.herokuapp.com/](http://science-fund.herokuapp.com/)
+
+
+- The contract is live on [Rinkeby]().
 ## Get Started
 
 Go to your root directory and install dependencies
@@ -18,34 +23,18 @@ npm run dev
 
 Open http://localhost:3000 with your browser to see the result.
 
+## After Updating Contracts
+- **update the artefact folder** by copying and paste `./solidity/artifacts` to `./next-ui/artifacts`
+ 
+
 ## Edit the home page
 
 You can start editing the homepage page by modifying <code>pages/index.js</code>. The page auto-updates as you edit the file.
 
-# HardHat Backend
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts.
+## Edit the minter page
 
-Try running some of the following tasks:
-```
-npx hardhat help
 
-```
-### deploy to local network
-```shell
-cd sf-next-dapp
-npx hardhat clean
-TS_NODE_TRANSPILE_ONLY=1 npx hardhat compile
-npx hardhat node
-npx hardhat deploy --network localhost
-```
-
-### Running test
-`//TODO:`more tests are needed
-
-```shell
-npx hardhat test
-```
 
 
 
@@ -72,13 +61,3 @@ npx hardhat test
     Update the localhost contract address in `.env` after deployment.
 
 
-# NFT metadata 
-
-
-#### metadata standard 
-[EIP-1155] (https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1155.md#erc-1155-metadata-uri-json-schema)
-
-
-#### deploy metadata file on arweave 
-
-follow the instructions [here](https://docs.arweave.org/developers/tools/textury-arkb)
