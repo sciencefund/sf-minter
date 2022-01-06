@@ -11,8 +11,6 @@ import CheckoutScreenHeader from "./checkoutScreenHeader";
 
 
 
-
-
 export default function CheckoutScreen(props) {
     // This component contains all the states related to this transaction
     const { close, contract, account, network } = props
@@ -59,8 +57,7 @@ export default function CheckoutScreen(props) {
     }
 
     return (
-        <ModalDisplayScreen close={close} network={network}>
-
+        <div>
 
             {!preview && (!txHash) &&
             <CheckoutScreenHeader
@@ -95,7 +92,7 @@ export default function CheckoutScreen(props) {
                 amount={2.5}
             />}
 
-        </ModalDisplayScreen>
+        </div>
 
 
 

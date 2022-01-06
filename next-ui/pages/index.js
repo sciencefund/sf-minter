@@ -16,7 +16,7 @@ import Summary from "../components/summary";
 import WhyNFT from "../components/whyNFT";
 import HowItWorks from "../components/howitworks";
 import TraceScreen from "../components/traceScreen";
-
+import Footer from "../components/footer";
 
 
 const contractAddress = process.env.NEXT_PUBLIC_RINKEBY_CONTRACT_ADDRESS;
@@ -216,7 +216,7 @@ export default function Home()
 				</section>
 
 				<section id="Donate">
-					<div className="w-screen bg-misty-forest bg-opacity-10 bg-cover h-full text-gray-300 py-24 pb-36">
+					<div className="w-screen bg-misty-forest bg-opacity-10 bg-cover h-full text-gray-300 py-24 pb-24">
 						<div className="mx-auto text-center w-3/4 py-8">
 							<h1 className='mb-4 text-4xl'>
 								How It Works{" "}
@@ -234,7 +234,7 @@ export default function Home()
 							</div>
 						</div>
 						<HowItWorks />
-
+						<WhyNFT />
 					</div>
 				</section>
 
@@ -242,7 +242,7 @@ export default function Home()
 
 				</section>
 
-				{/* <WhyNFT /> */}
+
 
 				{startCheckout && contract && <CheckoutScreen
 					close={() =>
@@ -269,9 +269,7 @@ export default function Home()
 
 
 			</div>
-			<footer className='mx-auto text-center my-2 mx-2 p-5'>
-				<a>@ 2021 Science Fund. All Rights Reserved.</a>
-			</footer>
+			<Footer />
 		</div>
 	);
 }
