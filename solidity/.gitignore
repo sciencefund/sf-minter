@@ -42,7 +42,7 @@ coverage.json
 cache
 typechain
 types
-
+/artifacts
 
 #sample data files
 samples
