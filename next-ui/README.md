@@ -1,4 +1,4 @@
-# Science Fund Token Minter App 
+# Science Fund Token Minter App Frontend
 
 # NextJS Frontend
 
@@ -34,9 +34,7 @@ You can start editing the homepage page by modifying <code>pages/index.js</code>
 
 ## Edit the minter page
 
-
-
-
+- this page can be accessed at route `./minter`, which can be linked through the brocure site.
 
 
 

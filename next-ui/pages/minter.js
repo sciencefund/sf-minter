@@ -149,18 +149,6 @@ export default function Minter()
     }, [provider])
 
 
-    const traceScreen = () =>
-    {
-        //start trace screen
-        setStartTrace(true);
-
-        if (!address)
-        {
-            connect();
-        }
-    };
-
-
 
     return (
         <div className='w-screen mx-auto font-serif overflow-x-hidden'>
@@ -170,7 +158,7 @@ export default function Minter()
                 <link rel='icon' href='/favicon.ico' />
             </Head>
             <div className='w-screen mx-auto'>
-                <section className='relative mx-auto bg-gradient-to-r from-gray-900 via-green-700 to-gray-900 bg-opacity-10 w-screen'>
+                <section className='relative mx-auto bg-gradient-to-tr from-slate-50 to-emerald-50  w-screen'>
                     {web3Provider ?
                         <ConnectWallet
                             onClick={disconnect}
@@ -185,54 +173,51 @@ export default function Minter()
                         />
                     }
 
-                    <div className='text-center text-white mx-auto w-3/4 py-48 h-min-96'>
+                    <div className='text-center text-white mx-auto px-10 py-48  max-w-screen-md	 w-min-96 h-min-96 md:w-3/4 sm:w-7/8'>
 
-
-                        <h1 className='text-grey-900 text-3xl uppercase mb-6 font-bold tracking-wide'>
-                            Science Fund Tokens
+                        <h1 className='font-serif text-stone-700 text-3xl uppercase mb-2 font-bold tracking-wide'>
+                            Science Fund Token
                         </h1>
-                        <p className='text-grey-800 text-1xl thin mb-4 '>
-                            An immutable, permanent record
-                            of your contribution to Science.
+                        <p className='mb-4 text-stone-500 text-lg font-thin font-sans px-2'>
+                            the immutable permanent record
+                            of your contribution to the future of science
                         </p>
 
 
+                        <div className="mx-auto bg-white rounded-2xl shadow-2xl py-2 px-4">
 
-                        <div className="w-96 mx-auto ">
-
-                            <div className='block my-8 text-center mx-auto text-left bg-green-700 p-2 rounded-2xl shadow-2xl'>
-                                <p className='text-gray-100 text-left w-4/5 max-w-64 text-base font-semibold '>
+                            <div className='block mx-auto text-left '>
+                                <p className='text-gray-800 text-xl font-bold font-serif pl-2 mb-2'>
                                     Funding Pool
                                 </p>
                                 <select
-                                    className='w-full max-w-64 mx-auto my-8 rounded-xl bg-gray-900 text-sm'>
-                                    <option >Pandemic Preparedness</option>
+                                    className='w-full h-20 max-w-64 mx-auto rounded-xl bg-slate-100 text-gray-700 text-xl border-transparent '>
+                                    <option className="p-0">Pandemic Preparedness</option>
                                     <option value>Science Fund General Pool</option>
                                 </select>
                             </div>
 
-
-                            <div className='block my-8 text-center mx-auto text-left bg-green-700 p-2 rounded-2xl shadow-2xl'>
-                                <p className='text-gray-100 text-left w-4/5 max-w-64 text-base font-semibold '>
+                            <div className='block mx-auto text-left '>
+                                <p className='text-gray-800 text-xl font-bold font-serif pl-2 mb-2'>
                                     Amount
                                 </p>
                                 <div className="flex justify-items-stretch">
-                                    <div className="text-left">
+                                    <div>
                                         <input
                                             type='number'
                                             min='0.3'
                                             name='value'
-                                            className={`max-w-32 pl-5 py-1 rounded bg-gray-100`}
+                                            className={"w-full h-20 max-w-64 mx-auto rounded-xl bg-slate-100 text-gray-700 text-xl border-transparent"}
                                             placeholder='0.3'
 
                                         />
-                                        <p className={'text-2xs italic text-gray-200'}>Minimum of 0.3 ETH is required.</p>
+                                        <p className={'text-2xs italic text-gray-900'}>Minimum of 0.3 ETH is required.</p>
                                     </div>
                                     <div className="text-right">
-                                        <span className='text-gray-100 text-xs font-light'>
+                                        <span className='text-gray-900 text-xs font-light'>
                                             {Math.round(3600 * 0.01 * 100) / 100} USD
                                         </span>
-                                        <span className="text-gray-100 mx-2 text-xl">ETH</span>
+                                        <span className="text-gray-900 mx-2 text-xl">ETH</span>
                                     </div>
                                 </div>
                             </div>
@@ -240,10 +225,14 @@ export default function Minter()
 
 
 
-                            <button className='bg-green-900 text-white w-2/3 hover:bg-gray-700 py-2 px-4 my-8 rounded'>
-                                <h2 >Mint</h2>
-                            </button>
 
+
+                            <div className='block mx-auto text-left '>
+
+                                <button className='w-full h-14 my-2 max-w-64 mx-auto rounded-xl bg-emerald-100 text-emerald-700 text-xl border-transparent'>
+                                    <h2 >Mint Token</h2>
+                            </button>
+                            </div>
                         </div >
 
 
@@ -251,12 +240,12 @@ export default function Minter()
 
                     </div>
 
-                    <div className="h-18">
-                    </div>
+
                 </section >
 
-
-                {
+            </div >
+        </div >
+            /* {
                     startCheckout && contract && <CheckoutScreen
                         close={() =>
                         {
@@ -278,10 +267,10 @@ export default function Minter()
                         account={address}
                         network={network}
                     />
-                }
+                } */
 
-            </div >
-            <Footer />
-        </div >
+
+        /* <Footer /> */
+
     );
 }
