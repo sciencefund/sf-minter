@@ -158,7 +158,7 @@ export default function Minter()
                 <link rel='icon' href='/favicon.ico' />
             </Head>
             <div className='w-screen mx-auto'>
-                <section className='relative mx-auto bg-gradient-to-tr from-slate-50 to-emerald-50  w-screen'>
+                <section className='relative mx-auto bg-gradient-to-t from-slate-50 to-emerald-50  w-screen'>
                     {web3Provider ?
                         <ConnectWallet
                             onClick={disconnect}
@@ -173,7 +173,7 @@ export default function Minter()
                         />
                     }
 
-                    <div className='text-center text-white mx-auto px-10 py-48  max-w-screen-md	 w-min-96 h-min-96 md:w-3/4 sm:w-7/8'>
+                    <div className='text-center text-white mx-auto px-10 py-48  max-w-screen-sm	 w-min-96 h-min-96 md:w-3/4 sm:w-7/8'>
 
                         <h1 className='font-serif text-stone-700 text-3xl uppercase mb-2 font-bold tracking-wide'>
                             Science Fund Token
@@ -188,7 +188,7 @@ export default function Minter()
 
                             <div className='block mx-auto text-left '>
                                 <p className='text-gray-800 text-xl font-bold font-serif pl-2 mb-2'>
-                                    Funding Pool
+                                    Donate
                                 </p>
                                 <select
                                     className='w-full h-20 max-w-64 mx-auto rounded-xl bg-slate-100 text-gray-700 text-xl border-transparent '>
