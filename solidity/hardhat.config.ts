@@ -18,7 +18,7 @@ import "./tasks/allocation/allocate";
 const config: HardhatUserConfig = {
   defaultNetwork: "hardhat",
   solidity: {
-    compilers: [{ version: "0.8.4", settings: {} }],
+    compilers: [{ version: "0.8.7", settings: {} }],
   },
   typechain: {    
     target: 'ethers-v5',
