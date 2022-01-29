@@ -71,7 +71,8 @@ contract ScienceFundPool is
     PoolStatus public status;
     // restricted to one accpeted Token for now. choice depends on big donor preference  
     IERC20 private poolTxToken; 
-    
+    uint256 public totalGrantRaised;
+
     Counters.Counter private _tokenIdCounter;
     EnumerableSet.AddressSet private grantRecipients;
 
@@ -83,6 +84,7 @@ contract ScienceFundPool is
     // tokenID -> amount in USDC
     mapping (uint256 => uint256) internal tokenIdValue;
     // @recipient -> value granted 
+    // @dev depending on the withdrawal machanism: it could be value left;
     mapping (address => uint256) private recipientValue;
     //@recipient -> 
     // @dev logic: should this be representatives of the pool of applicants or the 
@@ -104,6 +106,7 @@ contract ScienceFundPool is
     receive() external payable {
         // emit Received(msg.sender, msg.value);
     }
+
     //external function
     function changePoolStatus(PoolStatus _newStatus) external onlyOwner {
         status = _newStatus;
@@ -115,7 +118,16 @@ contract ScienceFundPool is
             recipientProfile[_recipientAddress] = _profileHash;            
     } 
 
-
+    /**
+     * @dev do we want the recepient to interact with this contract only once? or collect a small on the go until they exhaust their funds. they can even put in a phrase or two on the intent of the usage; we can set categories in advance;
+     * @dev one possible compilcation could be that the recipient has compromised private key etc. 
+     */
+    function claimGrant(uint256 _amount) external onlyRecipient(msg.sender) onlyWhenStatus(PoolStatus.Active){ 
+            require(_amount <= recipientValue[msg.sender], "ScienceFundPool: not enough grant to withdraw");
+            recipientValue[msg.sender] -= _amount; 
+            poolTxToken.safeTransfer(msg.sender, _amount);
+            // emit grant claiming event
+    }
 
 
     /**
@@ -135,8 +147,8 @@ contract ScienceFundPool is
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(_to, tokenId);
-        
         tokenIdValue[tokenId] = _amount;
+        totalGrantRaised += _amount;
         //TODO:  emit Donation event 
         poolTxToken.safeTransfer(address(this), _amount);
         }
@@ -178,13 +190,19 @@ contract ScienceFundPool is
         require(status == _status, "ScienceFundPool: wrong pool status");
         _;
     }
+
+    modifier onlyRecipient(address _address){
+        require(grantRecipients.contains(_address), "ScienceFundPool: Not A Grant Recipient");
+        _;
+    }
+
     /**
      * @notice this function dynamically generates token metadata given the donation information
      * @param  _amount donated amount for this token
      * @param _tokenId this tokenId
      * @return json output of metadata of this token 
      */
-     
+
     function _receiptMetadata(uint256 _amount, uint256 _tokenId)
         internal
         view
