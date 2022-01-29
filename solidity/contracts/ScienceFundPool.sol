@@ -72,13 +72,10 @@ contract ScienceFundPool is
     // restricted to one accpeted Token for now. choice depends on big donor preference  
     IERC20 private poolTxToken; 
     uint256 public totalGrantRaised;
-
+    
+    //@dev capped amount???
     Counters.Counter private _tokenIdCounter;
     EnumerableSet.AddressSet private grantRecipients;
-
-
-    //TODO: recipients address set, allow them to claim donation
-    //TODO: each recipient could have two hash with before and after, how much they received,
 
 
     // tokenID -> amount in USDC
@@ -108,39 +105,25 @@ contract ScienceFundPool is
     }
 
     //external function
+    /**
+     *  @dev  make sure complete is the absorbing state
+     *  @dev should we allow the status to be changed back and forth? or only progression?
+     */
     function changePoolStatus(PoolStatus _newStatus) external onlyOwner {
+        require(status != PoolStatus.Complete, "Pool Status can't be changed after Complete.");
         status = _newStatus;
     }
 
-    function allocateFund(address _recipientAddress, string memory _profileHash, uint256 _grantValue) external onlyOwner onlyWhenStatus(PoolStatus.Closed){
-            grantRecipients.add(_recipientAddress);
-            recipientValue[_recipientAddress] = _grantValue;
-            recipientProfile[_recipientAddress] = _profileHash;            
-    } 
-
     /**
-     * @dev do we want the recepient to interact with this contract only once? or collect a small on the go until they exhaust their funds. they can even put in a phrase or two on the intent of the usage; we can set categories in advance;
-     * @dev one possible compilcation could be that the recipient has compromised private key etc. 
-     */
-    function claimGrant(uint256 _amount) external onlyRecipient(msg.sender) onlyWhenStatus(PoolStatus.Active){ 
-            require(_amount <= recipientValue[msg.sender], "ScienceFundPool: not enough grant to withdraw");
-            recipientValue[msg.sender] -= _amount; 
-            poolTxToken.safeTransfer(msg.sender, _amount);
-            // emit grant claiming event
-    }
-
-
-    /**
-    *   @notice mint a receipt NFT to the _to address  
-    *     with donation amount _amount in stablecoin _token 
-    *   
-    *   @param _to address to mint to
-    *   @param _amount in that token
-    *   
-    *   @dev how to make sure the type of IERC20 tokens we accept ? 
-    *   @dev how to keep track of the total amount of tokens we accepted ?
+     *   @notice mint a receipt NFT to the _to address  
+     *     with donation amount _amount in stablecoin _token 
+     *   
+     *   @param _to address to mint to
+     *   @param _amount in that token
+     *   
+     *   @dev how to make sure the type of IERC20 tokens we accept ? 
+     *   @dev how to keep track of the total amount of tokens we accepted ?
     */
-
     function donate(address _to, uint256 _amount) external onlyWhenStatus(PoolStatus.Open) {
 
         // require token to be part of the accepted set
@@ -152,6 +135,45 @@ contract ScienceFundPool is
         //TODO:  emit Donation event 
         poolTxToken.safeTransfer(address(this), _amount);
         }
+
+    /**
+     *  @dev taken out 10% for processing to ScienceFund account??
+     * 
+     */
+    function allocateFund(address _recipientAddress, string memory _profileHash, uint256 _grantValue) external onlyOwner onlyWhenStatus(PoolStatus.Closed){
+            grantRecipients.add(_recipientAddress);
+            recipientValue[_recipientAddress] = _grantValue;
+            recipientProfile[_recipientAddress] = _profileHash;            
+    } 
+
+    /**
+     * @dev do we want the recepient to interact with this contract only once? or collect a small on the go until they exhaust their funds. they can even put in a phrase or two on the intent of the usage; we can set categories in advance;
+     * @dev one possible compilcation could be that the recipient has compromised private key etc. 
+     * @dev how to make sure recipient claims this money: what if they don't want it, not bothering doing it.
+     */
+    function claimGrant(uint256 _amount) external onlyRecipient(msg.sender) onlyWhenStatus(PoolStatus.Active){ 
+            require(_amount <= recipientValue[msg.sender], "ScienceFundPool: not enough grant to withdraw");
+            recipientValue[msg.sender] -= _amount; 
+            poolTxToken.safeTransfer(msg.sender, _amount);
+            //TODO: emit grant claiming event
+    }
+
+    /**
+     * @dev how to make sure recipients report back - somebody has to work with them
+     */
+    function reportImpact(string _reportHash) external onlyRecipient(msg.sender) onlyWhenStatus(PoolStatus.AssessingImpact){        
+        recipientImpactReport[msg.sender] = _reportHash;
+        //TODO: emit events
+    }
+    /**
+     * @notice admin withdraws leftover unclaimed funds after the status is complete
+     *
+     */
+    function withdraw() external onlyOwner onlyWhenStatus(PoolStatus.Complete){
+        uint256 leftOverBalance = poolTxToken.balanceOf(address(this));
+        poolTxToken.safeTransfer(msg.sender, leftOverBalance);
+        //TODO: emit events
+    }
   
   
     /**
@@ -190,6 +212,7 @@ contract ScienceFundPool is
         require(status == _status, "ScienceFundPool: wrong pool status");
         _;
     }
+
 
     modifier onlyRecipient(address _address){
         require(grantRecipients.contains(_address), "ScienceFundPool: Not A Grant Recipient");
