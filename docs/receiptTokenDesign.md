@@ -12,7 +12,9 @@ This token serves as a window for backers to trace their donation impact through
 
 Here are the properties that we'd like to associate with each SFR with consideration for future features.
 
-
+```
+//TODO: do we want each token to be burnable?
+```
 **Donation Pool**
 
 Each donation pool has its own story. Each pool represents a theme and needs to be operated in a cycle on its own. It provides the eventual allocation hash, completion hash common to all the SFRs generated through each donation cycle. 
@@ -27,17 +29,17 @@ Each donation pool has its own story. Each pool represents a theme and needs to 
     
 - stages and time limits (on-chain activities) 
 
-    1.  `pre-open` : marketing for the pool, telling the stories of this pool 
+    1.  `Registering` : marketing for the pool, telling the stories of this pool 
     
-    2.  `open`: accepting donations and allows minting of SFRs
+    2.  `Open`: accepting donations and allows minting of SFRs
     
-    3. `closed for allocation`: allocating tokens receipted and updating the allocation hash on each SFR 
+    3. `Closed`: allocating tokens receipted and updating the allocation hash on each SFR 
 
-    4. `active research`: the period when the grants are actively used for research related activities
+    4. `Active`: the period when the grants are actively used for research related activities
 
-    5. `impact reporting` : accessing impacts from the research activities 
+    5. `AssessingImpact` : accessing impacts from the research activities 
     
-    6. `complete`: updating impact report hash to each SFR in the pool.  
+    6. `Complete`: updating impact report hash to each SFR in the pool.  
 
     7. (`future upgrade` when DeSci is more mature and interconnected) track citations of papers generated in this pool as a whole 
 

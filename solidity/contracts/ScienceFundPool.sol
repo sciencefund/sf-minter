@@ -1,25 +1,44 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.2;
-import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+pragma solidity ^0.8.7;
+
+//inherited
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+//imported
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
+//library
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/Counters.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
 
 /**
- * @title Science Fund
+ * @title Science Fund Pool
  *
- * @notice this is the science fund contract that
- *      - permanently stores donation value, donation pool on chain on minting
- *      - returns a dynamically generated receipt in tokenURI
- *      - allows update to allocation and completion hash later by owner
- *      - reflects the updates in tokenURI metadata
+ * @notice  Science Fund Pool is an ERC721-compliant contract that mints ERC721 tokens 
+ * that are traceable receipts for each donation.  This contract is pauseable and ownable.
+ *
+ *
+ * When the donation pool is open, one can mint a token with its donation amount, donation domination
+ * written in the metadata. This information will be permanently stored on chain in this contract.
  * 
+ * When the pool is closed for allocation, a set of recipients will be added to the contract and they  
+ * can withdraw its corresponding funding by calling the claimGrant() function. Grant allocation 
+ * information will be updated on chain and also reflected in the metadata of each minted tokens.
+ * 
+ * After the fund has been allocated, the status of the pool will be set to ACTIVE, 
+ * this is when active research activities are conducted off line.
+ *
+ * Once the grant period runs out, the status of the pool will be set to AssessingImpact, and
+ * 
+ *
+ * @dev ownable gives access to the factory contract directly. AccessControl assigns roles for recipients.
  * 
  */
 
@@ -32,7 +51,8 @@ contract ScienceFundPool is
     using Counters for Counters.Counter;
     using Strings for uint256;
     using SafeERC20 for IERC20;
-    Counters.Counter private _tokenIdCounter;
+    using EnumerableSet for EnumerableSet.AddressSet;
+
 
     /**
      * @dev this enum represents the life cycle of a particular pool, which can be referenced from each token. This assumes that all tokens in the same pool are in sync with each other, following the same update.
@@ -46,26 +66,38 @@ contract ScienceFundPool is
         Complete
     }
 
-    // state variables
+    // state variables for the pool
     string public imageURI;
     PoolStatus public status;
-    //TODO: a set of accepted tokens
+    // restricted to one accpeted Token for now. choice depends on big donor preference  
+    IERC20 private poolTxToken; 
+    
+    Counters.Counter private _tokenIdCounter;
+    EnumerableSet.AddressSet private grantRecipients;
 
-    //TODO: initiate with USDC, USDT etc.
-    mapping (address => string) acceptedERC20Coins;
+
     //TODO: recipients address set, allow them to claim donation
     //TODO: each recipient could have two hash with before and after, how much they received,
 
+
     // tokenID -> amount in USDC
-    mapping (uint256 => uint256) internal tokenValue;
-    mapping (uint256 => string) internal tokenCoin;
+    mapping (uint256 => uint256) internal tokenIdValue;
+    // @recipient -> value granted 
+    mapping (address => uint256) private recipientValue;
+    //@recipient -> 
+    // @dev logic: should this be representatives of the pool of applicants or the 
+    // @dev this should be enumerable? all on metadata for all coins?
+    mapping (address => string) public recipientProfile;
+    mapping (address => string) public recipientImpactReport;
+
     
     //constructor
-    constructor(string memory _name, string memory _symbol, string memory _imageURI)
+    constructor(string memory _name, string memory _symbol, string memory _imageURI, address _acceptedTokenAddress)
         ERC721(_name, _symbol)
     {
         imageURI = _imageURI;
         status = PoolStatus.Registering;
+        poolTxToken = IERC20(_acceptedTokenAddress);
     }   
 
     fallback() external payable{}
@@ -77,29 +109,36 @@ contract ScienceFundPool is
         status = _newStatus;
     }
 
+    function allocateFund(address _recipientAddress, string memory _profileHash, uint256 _grantValue) external onlyOwner onlyWhenStatus(PoolStatus.Closed){
+            grantRecipients.add(_recipientAddress);
+            recipientValue[_recipientAddress] = _grantValue;
+            recipientProfile[_recipientAddress] = _profileHash;            
+    } 
+
+
+
 
     /**
-    *    @notice mint a receipt NFT to the _to address  
+    *   @notice mint a receipt NFT to the _to address  
     *     with donation amount _amount in stablecoin _token 
     *   
     *   @param _to address to mint to
-    *   @param _assetAddress accepted token address 
     *   @param _amount in that token
     *   
     *   @dev how to make sure the type of IERC20 tokens we accept ? 
     *   @dev how to keep track of the total amount of tokens we accepted ?
     */
-    function donate(address _to, address _assetAddress, uint256 _amount) external onlyWhenStatus(PoolStatus.Open) {
+
+    function donate(address _to, uint256 _amount) external onlyWhenStatus(PoolStatus.Open) {
 
         // require token to be part of the accepted set
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(_to, tokenId);
         
-        tokenCoin[tokenId] = acceptedERC20Coins[_assetAddress];
-        tokenValue[tokenId] = _amount;
+        tokenIdValue[tokenId] = _amount;
         //TODO:  emit Donation event 
-        IERC20(_assetAddress).safeTransfer(address(this), _amount);
+        poolTxToken.safeTransfer(address(this), _amount);
         }
   
   
@@ -119,8 +158,7 @@ contract ScienceFundPool is
             "ScienceFund: Token needs to be minted first"
         );
 
-// _receiptMetadata(uint256 _amount, address _assetAddress, uint256 _tokenId)
-        return _receiptMetadata(tokenValue[_tokenId], tokenCoin[_tokenId], _tokenId);
+        return _receiptMetadata(tokenIdValue[_tokenId], _tokenId);
     }
 
 
@@ -143,12 +181,11 @@ contract ScienceFundPool is
     /**
      * @notice this function dynamically generates token metadata given the donation information
      * @param  _amount donated amount for this token
-     * @param _coinName  ERC20 token name; denomination of the donation
      * @param _tokenId this tokenId
      * @return json output of metadata of this token 
      */
      
-    function _receiptMetadata(uint256 _amount, string memory _coinName, uint256 _tokenId)
+    function _receiptMetadata(uint256 _amount, uint256 _tokenId)
         internal
         view
         virtual
@@ -164,7 +201,7 @@ contract ScienceFundPool is
             abi.encodePacked(
                 "This NFT represents a permanent receipt to your donation of ",
                 tokenValueString, 
-                _coinName,
+                "USD",
                 "to Science Fund - ",
                 name(),
                 "This token connects your donation to the selected recipients and tracks the impact it enables for generations to come."
@@ -185,6 +222,9 @@ contract ScienceFundPool is
             );
     }
 
+
+    //private functions
+
     function _beforeTokenTransfer(
         address from,
         address to,
@@ -193,18 +233,4 @@ contract ScienceFundPool is
         super._beforeTokenTransfer(from, to, tokenId);
     }
 
-    //private functions
-
-
-    
-    // The following functions are overrides required by Solidity.
-
-    // function supportsInterface(bytes4 interfaceId)
-    //     public
-    //     view
-    //     override(ERC721Enumerable)
-    //     returns (bool)
-    // {
-    //     return super.supportsInterface(interfaceId);
-    // }
 }

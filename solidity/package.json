@@ -9,7 +9,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "clean": "TS_NODE_TRANSPILE_ONLY=1 hardhat clean",
-    "compile": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile"
+    "build": "TS_NODE_TRANSPILE_ONLY=1 hardhat compile"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^4.3.2"
