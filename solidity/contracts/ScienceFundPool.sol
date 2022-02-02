@@ -6,8 +6,9 @@ import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./IScienceFundPool.sol";
 
-//imported
+//imported standard
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -42,30 +43,21 @@ import "@openzeppelin/contracts/utils/Strings.sol";
  */
 
 //function ordering : constructor, fallback, external, public, internal, private
-contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable {
+contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPool {
+
     using Counters for Counters.Counter;
     using Strings for uint256;
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /**
-     * @dev this enum represents the life cycle of a particular pool, which can be referenced from each token. This assumes that all tokens in the same pool are in sync with each other, following the same update.
-     */
-    enum PoolStatus {
-        Registering,
-        Open,
-        Closed,
-        Active,
-        AssessingImpact,
-        Complete
-    }
+  
 
     // state variables for the pool
     string public imageURI;
     PoolStatus public status;
     // restricted to one accpeted Token for now. choice depends on big donor preference
     IERC20 private poolTxToken;
-    uint256 public totalGrantRaised;
+    uint256 public totalUnallocatedFund;
 
     //@dev capped amount???
     Counters.Counter private _tokenIdCounter;
@@ -102,15 +94,18 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable {
 
     //external function
     /**
+     * emit event PoolStatusUpdated
      *  @dev  make sure complete is the absorbing state
      *  @dev should we allow the status to be changed back and forth? or only progression?
      */
-    function changePoolStatus(PoolStatus _newStatus) external onlyOwner {
+    function changePoolStatus(PoolStatus _newStatus) external override onlyOwner {
+        PoolStatus _oldStatus = status;
         require(
             status != PoolStatus.Complete,
             "Pool Status can't be changed after Complete."
         );
         status = _newStatus;
+        emit PoolStatusUpdated(msg.sender, _oldStatus, _newStatus);
     }
 
     /**
@@ -124,7 +119,7 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable {
      *   @dev how to keep track of the total amount of tokens we accepted ?
      */
     function donate(address _to, uint256 _amount)
-        external
+        external override
         onlyWhenStatus(PoolStatus.Open)
     {
         // require token to be part of the accepted set
@@ -132,8 +127,8 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable {
         _tokenIdCounter.increment();
         _safeMint(_to, tokenId);
         tokenIdValue[tokenId] = _amount;
-        totalGrantRaised += _amount;
-        //TODO:  emit Donation event
+        totalUnallocatedFund += _amount;
+        emit DonationReceived(msg.sender, _amount, tokenId);
         poolTxToken.safeTransfer(address(this), _amount);
     }
 
@@ -145,19 +140,68 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable {
         address _recipientAddress,
         string memory _profileHash,
         uint256 _grantValue
-    ) external onlyOwner onlyWhenStatus(PoolStatus.Closed) {
-        grantRecipients.add(_recipientAddress);
-        recipientValue[_recipientAddress] = _grantValue;
-        recipientProfile[_recipientAddress] = _profileHash;
+    ) external override onlyOwner onlyWhenStatus(PoolStatus.Closed) {
+        _addRecipient(_recipientAddress);
+        _updateProfileHash(_recipientAddress, _profileHash);
+        _updateGrantValue(_recipientAddress, _grantValue);
+        emit FundAllocated(_recipientAddress, _grantValue);
     }
 
-    //TODO: allow change of recipientAddress
+    /**
+     *  @dev remove recipient should be allowed if anything has happened to the account or the recipient.
+     *
+     */
+    function _removeRecipient(address _recipientAddress) internal onlyOwner {
+        grantRecipients.remove(_recipientAddress);
+        //emit event
+    }
+
+
+    function _addRecipient(address _recipientAddress) internal onlyOwner {
+        grantRecipients.add(_recipientAddress);
+        //emit event
+    }
+
+    function _updateProfileHash(address _recipientAddress, string memory _newHash) internal onlyOwner {
+        recipientProfile[_recipientAddress] = _newHash;
+        //emit event
+    }
+
+
+    function _updateGrantValue(address _recipientAddress, uint256 _newValue) internal onlyOwner {
+        //check 
+        uint256 _oldValue =  recipientValue[_recipientAddress];
+        totalUnallocatedFund += _oldValue;
+
+        require(_newValue <= totalUnallocatedFund, "ScienceFundPool: not enough unallocated fund");
+        
+        recipientValue[_recipientAddress] = _newValue;
+        //emit event
+    }
+
+
+    /**
+     *  @dev allow change of recipientAddress in case 
+     *  note only when status is active ?
+     */
+    function updateRecipientAddress(address _oldRecipientAddress, address _newAddress) external override onlyOwner onlyWhenStatus(PoolStatus.Active) {
+        // grantRecipients.remove(_oldRecipientAddress);
+        // grantRecipients.add(_newAddress);
+        // recipientValue[_newAddress] = recipientValue[_oldRecipientAddress];
+        // recipientProfile[_newAddress] = recipientProfile[_oldRecipientAddress];
+
+        // recipientValue[_oldRecipientAddress] = address(0);
+        // recipientProfile[_oldRecipientAddress] = "0x00";
+
+        emit RecipientAddressUpdated(_oldRecipientAddress, _newAddress);
+    }
+
 
     /**
      * @dev do we want the recepient to interact with this contract only once? or collect a small on the go until they exhaust their funds. they can even put in a phrase or two on the intent of the usage; we can set categories in advance;
      * @dev one possible compilcation could be that the recipient has compromised private key etc. 
      * @dev how to make sure recipient claims this money: what if they don't want it, not bothering doing it.
-     //TODO: maybe onlyOwner?
+     //TODO: maybe onlyOwner? allow admin to withdraw grant for recipient if needed
      */
     function claimGrant(uint256 _amount)
         external
@@ -177,7 +221,7 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable {
      * @dev how to make sure recipients report back - somebody has to work with them
      * //TODO: onlyOwner do it?
      */
-    function reportImpact(string _reportHash)
+    function reportImpact(string memory _reportHash)
         external
         onlyRecipient(msg.sender)
         onlyWhenStatus(PoolStatus.AssessingImpact)
@@ -237,6 +281,12 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable {
         );
         _;
     }
+
+    modifier beforeComplete() {
+        require(status != PoolStatus.Complete, "ScienceFundPool: no more change after completion");
+        _;
+    }
+
 
     /**
      * @notice this function dynamically generates token metadata given the donation information
