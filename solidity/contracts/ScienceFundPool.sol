@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "./IScienceFundPool.sol";
+import "./IScienceFundRegistry.sol";
 
 //imported standard
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -54,25 +55,38 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
 
     // state variables for the pool
     string public imageURI;
+    IScienceFundRegistry public registry;
     PoolStatus public status;
     // restricted to one accpeted Token for now. choice depends on big donor preference
     IERC20 private poolTxToken;
     uint256 public totalUnallocatedFund;
-
+    
     //@dev capped amount???
     Counters.Counter private _tokenIdCounter;
-    EnumerableSet.AddressSet private grantRecipients;
 
-    // tokenID -> amount in USDC
+    // tokenID -> amount in USDC donated
     mapping(uint256 => uint256) internal tokenIdValue;
+
+
     // @recipient -> value granted
     // @dev depending on the withdrawal machanism: it could be value left;
-    mapping(address => uint256) private recipientValue;
+    // mapping(address => uint256) private recipientValue;
     //@recipient ->
     // @dev logic: should this be representatives of the pool of applicants or the
     // @dev this should be enumerable? all on metadata for all coins?
-    mapping(address => string) public recipientProfile;
-    mapping(address => string) public recipientImpactReport;
+    // mapping(address => string) public recipientProfile;
+    // mapping(address => string) public recipientImpactReport;
+
+
+    struct Recipient {
+        uint256 grantValue;
+        address recipientAddress;
+        string profileHash;
+        string impactHash;
+    }   
+
+    Recipient[] poolRecipients;
+
 
     //constructor
     constructor(
@@ -84,6 +98,9 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
         imageURI = _imageURI;
         status = PoolStatus.Registering;
         poolTxToken = IERC20(_acceptedTokenAddress);
+        totalUnallocatedFund = 0;
+        registry = IScienceFundRegistry(msg.sender);
+        //setup role ?
     }
 
     fallback() external payable {}
@@ -92,11 +109,16 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
         // emit Received(msg.sender, msg.value);
     }
 
-    //external function
+    //external functions
     /**
      * emit event PoolStatusUpdated
-     *  @dev  make sure complete is the absorbing state
-     *  @dev should we allow the status to be changed back and forth? or only progression?
+     *  @param _newStatus the next status to be udpated too.
+     *   
+     *  Requirement:
+     *      - only Admin can call this function
+     *      - when the status is Complete, no more change is allowed.
+     *
+     * @dev should we allow the status to be changed back and forth? or only progression?
      */
     function changePoolStatus(PoolStatus _newStatus) external override onlyOwner {
         PoolStatus _oldStatus = status;
@@ -110,42 +132,64 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
 
     /**
      *   @notice mint a receipt NFT to the _to address
-     *     with donation amount _amount in stablecoin _token
+     *     with donation amount _amount in stablecoin _token;
+     *  5% processing fees are transferred to the registry contract.
      *
      *   @param _to address to mint to
      *   @param _amount in that token
      *
-     *   @dev how to make sure the type of IERC20 tokens we accept ?
-     *   @dev how to keep track of the total amount of tokens we accepted ?
+     *   Requirements:
+     *          - the pool status needs to be open to accept donations
+     *          
+     *   @dev may expand to other tokens.
+     *  
      */
     function donate(address _to, uint256 _amount)
         external override
         onlyWhenStatus(PoolStatus.Open)
     {
-        // require token to be part of the accepted set
+        require(_to!=address(0), "zero address");
+        require(_amount > 0.000001 ether, "donation amount smaller than minimum unit");
+        // check decimal() of the IERC20 token
+
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
         _safeMint(_to, tokenId);
-        tokenIdValue[tokenId] = _amount;
-        totalUnallocatedFund += _amount;
-        emit DonationReceived(msg.sender, _amount, tokenId);
+        
+        //fees 
+        uint256 fees = _amount * 0.05;
+        uint256 donatedAmount = _amount * 0.95;
+
+        
+        tokenIdValue[tokenId] = donatedAmount;
+        totalUnallocatedFund += donatedAmount;
+        emit DonationReceived(msg.sender, donatedAmount, tokenId);
+
+
         poolTxToken.safeTransfer(address(this), _amount);
+        // sciencefundtreasury
+        poolTxToken.safeTransfer(address(registry), fees);
     }
 
     /**
+     *  @notice allocate fund by percentage or value in one go.
      *  @dev taken out 10% for processing to ScienceFund account??
      *
      */
-    function allocateFund(
-        address _recipientAddress,
-        string memory _profileHash,
-        uint256 _grantValue
+
+     //TODO: HOW TO ALLOCATE FUND TO others? check out aave-v2
+    function allocateFundByPercentage(
+        address[] _recipientAddress,
+        string[] memory _profileHash,
+        uint256[] _grantValue
     ) external override onlyOwner onlyWhenStatus(PoolStatus.Closed) {
         _addRecipient(_recipientAddress);
         _updateProfileHash(_recipientAddress, _profileHash);
         _updateGrantValue(_recipientAddress, _grantValue);
         emit FundAllocated(_recipientAddress, _grantValue);
     }
+
+
 
     /**
      *  @dev remove recipient should be allowed if anything has happened to the account or the recipient.
@@ -179,7 +223,6 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
         //emit event
     }
 
-
     /**
      *  @dev allow change of recipientAddress in case 
      *  note only when status is active ?
@@ -195,6 +238,11 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
 
         emit RecipientAddressUpdated(_oldRecipientAddress, _newAddress);
     }
+
+
+
+
+
 
 
     /**
