@@ -51,7 +51,8 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-  
+    //Constants bytes for not applicable etc.
+
 
     // state variables for the pool
     string public imageURI;
@@ -67,25 +68,19 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
     // tokenID -> amount in USDC donated
     mapping(uint256 => uint256) internal tokenIdValue;
 
-
-    // @recipient -> value granted
-    // @dev depending on the withdrawal machanism: it could be value left;
-    // mapping(address => uint256) private recipientValue;
-    //@recipient ->
     // @dev logic: should this be representatives of the pool of applicants or the
-    // @dev this should be enumerable? all on metadata for all coins?
-    // mapping(address => string) public recipientProfile;
-    // mapping(address => string) public recipientImpactReport;
-
+    bytes32 public constant TO_BE_ASSIGNED= keccak256("TO_BE_ASSIGNED");
+    bytes32 public constant REMOVED = keccak256("REMOVED");
+    
 
     struct Recipient {
         uint256 grantValue;
         address recipientAddress;
-        string profileHash;
-        string impactHash;
+        bytes32 profileHash;
+        bytes32 impactHash;
     }   
 
-    Recipient[] poolRecipients;
+    mapping(address => Recipient) grantRecipients;
 
 
     //constructor
@@ -142,7 +137,7 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
      *          - the pool status needs to be open to accept donations
      *          
      *   @dev may expand to other tokens.
-     *  
+     *   TODO: question should we donate to the pool or donate to potential recipients
      */
     function donate(address _to, uint256 _amount)
         external override
@@ -156,7 +151,7 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
         _tokenIdCounter.increment();
         _safeMint(_to, tokenId);
         
-        //fees 
+        //fees  TODO: add fee percentage as variable;
         uint256 fees = _amount * 0.05;
         uint256 donatedAmount = _amount * 0.95;
 
@@ -172,73 +167,139 @@ contract ScienceFundPool is Ownable, Pausable, ERC721Enumerable, IScienceFundPoo
     }
 
     /**
-     *  @notice allocate fund by percentage or value in one go.
-     *  @dev taken out 10% for processing to ScienceFund account??
+     *  @notice assign grant value value in one go.
+     *  @dev A batch version to assign by percent 
      *
+     *  Requirements: 
+     *  - should be only called once to assign a big batch;
+     *  - there could be leftovers from the fund;
+     *  
+     * 
+     * TODO: question 
+     *     - two stage allocation: 
+     *              - first: add recipient info (one by one)
+     *              - second: assign value jointly with all recipients: 
+     *     - advantage: keeping track of total value, could assign by percentage
+     *     - disadvantage: more gas, less flexibility; pool closed; one extra
+     *     - how much to allocate depends on 
+     *          - how much is asked by the applicant?
+     *          - how much is available to be assigned?
+     *          - how much is worth: evaluated by someone or committee?
      */
 
-     //TODO: HOW TO ALLOCATE FUND TO others? check out aave-v2
-    function allocateFundByPercentage(
-        address[] _recipientAddress,
-        string[] memory _profileHash,
-        uint256[] _grantValue
+    function batchAssignGrantByValue(
+        address[] calldata _addresses,
+        uint256[] calldata _grantValues
     ) external override onlyOwner onlyWhenStatus(PoolStatus.Closed) {
-        _addRecipient(_recipientAddress);
-        _updateProfileHash(_recipientAddress, _profileHash);
-        _updateGrantValue(_recipientAddress, _grantValue);
-        emit FundAllocated(_recipientAddress, _grantValue);
+        //TODO: check how calldata work
+        //TODO: check curve: keep track of total number of recipients;
+        require(_addresses.length == _grantValues.length, "");
+        require(_addresses.length <= 50, "exceeds maximum recipient number in this batch");
+
+        //TODO: the sum of total grant values add up to the unAllocated values;
+        uint assignedValue = 0;
+        for (uint256 i = 0; i < addresses.length; i++){
+            assignedValues+=_grantValue[i];
+        }
+        require(assignedValues <= totalUnallocatedFund, "exceeds total fund");
+
+
+        for (uint256 i = 0; i < addresses.length; i++) {
+            assignValue(_addresses[i], _grantValue[i]);
+        }  
+    }
+
+    /**
+     *  @dev question are we too strict with the status in terms of function calls?
+     *  - does it create more txs and unnecessary restraints without security benefits?
+     *  - what are the pool stages for? 
+     *          - inform users or restrain function calls?
+     */
+    function assignValue(address _address, uint256 _value) public onlyOwner onlyWhenStatus(PoolStatus.Closed){
+        require (_address != address(0), "zero address as recipient");
+        // think: is it possible to have different, non-zero addresses?
+        require (grantRecipients[_address].address == _address, "recipient does not exists");
+
+        // reset instead of adding on; should check if previous value is zero? 
+        require(grantRecipients[_address].grantValue == 0, "recipient value not reset to zero");
+        grantRecipients[_address].grantValue = _value;
+
+        require(_value > 0, "zero value in grant");
+        require(_value <= totalUnallocatedFund, "exceeds total fund");
+        totalUnallocatedFund -= _value;
+
+        // before - after state change
+        // emit unlocated fund change
+        // emit recipient before and after change
+        emit FundAllocated(_address, _value);
+    }
+    
+
+    /**
+     * Update Reciepient Info : address or profile only;
+     */
+    function updateRecipientInfo(address _oldAddress, address _newAddress, string memory _newProfile) public onlyOwner {
+        require(_oldAddress != address(0), "Address cannot be zero");
+        require(_newAddress != address(0), "Address cannot be zero");
+
+        // this is only for address
+        bool success = removeRecipient(_oldAddress);  
+        if(success){
+            addRecipientInfo(_newAddress,  _newProfile);
+        }       
     }
 
 
+    /**
+     * @notice add recipient for the first time during allocation stage, without the amount
+     * 
+     */
+    function addRecipientInfo(address _address, string memory _profile) public onlyOwner {
+        //TODO: how to validate profile?
+        require(_address != address(0), "Address cannot be zero");
+        Recipient storage thisRecipient = grantRecipients[_address];
+        require(thisRecipient.address == address(0), "Recipient already exists");
+        grantRecipients[_address] = Recipient(0, _address, keccak256(_profile), TO_BE_ASSIGNED);
+        // emit events on added recipient
+    }
 
+
+    /**
+     * Remove Reciepient Info , reset all values
+     */
+    function removeRecipient(address _address) public onlyOwner returns(bool) {
+        Recipient storage thisRecipient = grantRecipients[_address];
+
+        require(thisRecipient.address == _address, "Recipient does not exist");
+        grantRecipients[_address].address == address(0);
+        grantRecipients[_address].profileHash == REMOVED;
+        grantRecipients[_address].grantValue == 0;
+        grantRecipients[_address].impactHash == REMOVED;
+
+        return true;
+        //emit event
+    }
+
+
+    // Internal functions
     /**
      *  @dev remove recipient should be allowed if anything has happened to the account or the recipient.
      *
      */
-    function _removeRecipient(address _recipientAddress) internal onlyOwner {
-        grantRecipients.remove(_recipientAddress);
-        //emit event
-    }
-
-
-    function _addRecipient(address _recipientAddress) internal onlyOwner {
-        grantRecipients.add(_recipientAddress);
-        //emit event
-    }
-
-    function _updateProfileHash(address _recipientAddress, string memory _newHash) internal onlyOwner {
-        recipientProfile[_recipientAddress] = _newHash;
-        //emit event
-    }
-
-
-    function _updateGrantValue(address _recipientAddress, uint256 _newValue) internal onlyOwner {
+    function _resetGrantValue(address _address) internal onlyOwner {
         //check 
-        uint256 _oldValue =  recipientValue[_recipientAddress];
+        require(_address != address(0), "address is zero");
+        require(grantRecipients[_address].address == _address, "address exists");
+        
+        uint256 _oldValue =  grantRecipients[_recipientAddress].grantValue;
+        require(_oldValue > 0, "Already reset to zero");
         totalUnallocatedFund += _oldValue;
 
-        require(_newValue <= totalUnallocatedFund, "ScienceFundPool: not enough unallocated fund");
-        
-        recipientValue[_recipientAddress] = _newValue;
+        grantRecipients[_recipientAddress].grantValue = 0;
         //emit event
     }
 
-    /**
-     *  @dev allow change of recipientAddress in case 
-     *  note only when status is active ?
-     */
-    function updateRecipientAddress(address _oldRecipientAddress, address _newAddress) external override onlyOwner onlyWhenStatus(PoolStatus.Active) {
-        // grantRecipients.remove(_oldRecipientAddress);
-        // grantRecipients.add(_newAddress);
-        // recipientValue[_newAddress] = recipientValue[_oldRecipientAddress];
-        // recipientProfile[_newAddress] = recipientProfile[_oldRecipientAddress];
-
-        // recipientValue[_oldRecipientAddress] = address(0);
-        // recipientProfile[_oldRecipientAddress] = "0x00";
-
-        emit RecipientAddressUpdated(_oldRecipientAddress, _newAddress);
-    }
-
+    
 
 
 
